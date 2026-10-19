@@ -1,0 +1,131 @@
+# ==============================================================================
+# TP 6 : Analyse de Variance (ANOVA 1 et 2 Facteurs) & Tests Post-Hoc
+# Description : Comparaison de moyennes multiples, décomposition théorique de 
+#               la variance (inter/intra-groupes), validation des hypothèses 
+#               (Shapiro-Wilk, Bartlett) et ANOVA à deux facteurs avec interaction.
+# ==============================================================================
+
+
+# ==============================================================================
+# EXERCICE 1 : ANOVA à 1 Facteur (Croissance bactérienne BCG selon le milieu)
+# ==============================================================================
+
+# 1. Construction du jeu de données (UFC par milieu de culture)
+A <- c(10, 12, 8, 10, 6, 13, 9, 10, 8, 9)
+B <- c(11, 18, 12, 15, 13, 8, 15, 16, 9, 13)
+C <- c(7, 14, 10, 11, 9, 10, 0, 11, 7, 9)
+D <- c(12, 9, 11, 10, 7, 8, 13, 14, 10, 11)
+E <- c(7, 6, 10, 7, 7, 5, 6, 7, 9, 6)
+
+BCG <- data.frame(A, B, C, D, E)
+
+# Statistiques descriptives univariées
+colMeans(BCG)
+diag(var(BCG))
+summary(BCG)
+
+# 2. Vérification des conditions d'application de l'ANOVA
+
+# A. Normalité au sein de chaque groupe (Test de Shapiro-Wilk)
+p_vals_shapiro <- apply(BCG, 2, function(x) shapiro.test(x)$p.value)
+p_vals_shapiro # Toutes les p-values doivent être > 0.05
+
+# Graphiques Q-Q Plot pour inspection visuelle
+par(mfrow = c(2, 3))
+apply(BCG, 2, function(x) { qqnorm(x) ; qqline(x, col = "red") })
+par(mfrow = c(1, 1))
+
+# B. Homoscédasticité / Égalité des variances (Test de Bartlett)
+bartlett.test(BCG) # H0 : Variances égales entre les groupes
+
+
+# 3. Décomposition théorique manuelle de la variance
+
+x_all <- unlist(BCG) # Tous les individus en un seul vecteur
+N <- length(x_all)   # Effectif total (N = 50)
+k <- ncol(BCG)       # Nombre de groupes (k = 5)
+n_g <- nrow(BCG)     # Effectif par groupe (n = 10)
+
+# Somme des Carrés Totale (SCT)
+SCT <- sum((x_all - mean(x_all))^2)
+
+# Somme des Carrés Intra-groupe / Résiduelle (SCE)
+SCE <- sum(sweep(BCG, 2, colMeans(BCG), "-")^2)
+VE  <- SCE / (N - k) # Variance intra-groupe (Carré Moyen Résiduel)
+
+# Somme des Carrés Inter-groupes (SCI)
+SCI <- sum((colMeans(BCG) - mean(x_all))^2 * n_g)
+VI  <- SCI / (k - 1) # Variance inter-groupe (Carré Moyen Facteur)
+
+# Statistique F observée
+F_obs <- VI / VE
+cat("Statistique F calculée manuellement :", round(F_obs, 4), "\n")
+
+
+# 4. Modélisation ANOVA directe avec la fonction aov()
+
+# Reformatage des données en format long
+BCG_Group <- stack(BCG)
+names(BCG_Group) <- c("UFC", "milieu")
+
+# Exécution de l'ANOVA 1 facteur
+anova_bcg <- aov(UFC ~ milieu, data = BCG_Group)
+summary(anova_bcg)
+
+# 5. Tests Post-Hoc : Comparaisons multiples avec correction de Bonferroni
+pairwise.t.test(BCG_Group$UFC, 
+                 BCG_Group$milieu, 
+                 p.adjust.method = "bonferroni", 
+                 var.equal = TRUE)
+
+
+# ==============================================================================
+# EXERCICE 2 : ANOVA à 2 Facteurs avec Interaction (Rendement agronomique)
+# ==============================================================================
+
+# 1. Construction du jeu de données (Facteurs : Alimentation x Dose)
+rendement <- data.frame(
+  Faib_Pail = c(8, 11, 11, 10, 7),
+  Faib_Foin = c(12, 13, 14, 11, 10),
+  Faib_Herb = c(17, 13, 17, 15, 13),
+  Faib_Autr = c(8, 9, 8, 10, 9),
+  Fort_Pail = c(8, 9, 8, 10, 9),
+  Fort_Foin = c(10, 7, 10, 12, 11),
+  Fort_Herb = c(11, 9, 11, 11, 12),
+  Fort_Autr = c(17, 19, 17, 16, 21)
+)
+
+# Exploration visuelle
+boxplot(rendement, col = "lightblue", las = 2,
+        main = "Distribution du rendement par condition d'essai")
+
+# 2. Vérification des conditions d'application
+apply(rendement, 2, function(x) shapiro.test(x)$p.value)
+bartlett.test(rendement)
+
+# 3. Restructuration du jeu de données en format long pour ANOVA à 2 facteurs
+rendement_aov <- stack(rendement)
+names(rendement_aov) <- c("rdt", "condition")
+
+# Extraction des variables explicatives à partir du nom des colonnes
+conditions_split <- strsplit(as.character(rendement_aov$condition), split = "_")
+rendement_aov$dose <- sapply(conditions_split, `[`, 1)
+rendement_aov$alim <- sapply(conditions_split, `[`, 2)
+
+# Conversion en facteurs
+rendement_aov$dose <- as.factor(rendement_aov$dose)
+rendement_aov$alim <- as.factor(rendement_aov$alim)
+
+head(rendement_aov)
+
+# 4. Modélisation : ANOVA à 2 facteurs avec terme d'interaction (alim * dose)
+aov_2facteurs <- aov(rdt ~ alim + dose + alim:dose, data = rendement_aov)
+summary(aov_2facteurs)
+
+# Graphique d'interaction
+interaction.plot(x.factor = rendement_aov$alim, 
+                 trace.factor = rendement_aov$dose, 
+                 response = rendement_aov$rdt,
+                 type = "b", pch = c(1, 19), col = c("red", "blue"),
+                 legend = TRUE, xlab = "Alimentation", ylab = "Rendement moyen",
+                 main = "Graphique d'interaction Alimentation x Dose")
