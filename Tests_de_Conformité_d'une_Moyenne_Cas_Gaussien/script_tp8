@@ -1,0 +1,143 @@
+# ==============================================================================
+# TP 8 : Tests de Conformité d'une Moyenne en Population Gaussienne
+# Description : Formalisation des tests unilatéraux et bilatéraux, calcul 
+#               du test Z (variance connue) et du test t de Student (variance 
+#               inconnue), interprétation des p-values et stratification.
+# ==============================================================================
+
+
+# ==============================================================================
+# EXERCICE 1 : Test Z de Conformité (Variance Connue) - Remplissage de Flacons
+# ==============================================================================
+
+# Contexte : Mesures du volume de 5 flacons (en cL) : C = (101, 103, 99, 102, 101)
+# Hypothèses : H0 : mu = 100 cL  vs  H1 : mu != 100 cL (Test bilatéral)
+# Paramètre connu sous H0 : sigma = 1 cL
+
+C    <- c(101, 103, 99, 102, 101)
+n    <- length(C)
+Cbar <- mean(C)
+mu0  <- 100
+sig  <- 1
+
+# 1. Calcul de la statistique de test Z_obs
+# Sous H0, Z = sqrt(n) * (Cbar - mu0) / sigma ~ N(0, 1)
+Z_obs <- sqrt(n) * (Cbar - mu0) / sig
+
+# 2. Région critique au seuil alpha = 5% (Quantiles de N(0, 1))
+q_crit <- qnorm(c(0.025, 0.975), mean = 0, sd = 1)
+
+cat("--- EXERCICE 1 : Test Z à variance connue ---\n")
+cat("Moyenne observée (Cbar) :", Cbar, "cL\n")
+cat("Statistique Z_obs       :", round(Z_obs, 4), "\n")
+cat("Intervalle d'acceptation : [", round(q_crit[1], 4), ";", round(q_crit[2], 4), "]\n")
+
+# 3. Calcul de la p-value bilatérale
+p_value_z <- 2 * (1 - pnorm(abs(Z_obs)))
+cat("p-value                 :", round(p_value_z, 4), "\n")
+
+# Décision : Z_obs (2.6833) > 1.96 et p-value (0.0073) < 0.05.
+# Rejet de H0 : Le volume moyen est significativement différent de 100 cL.
+
+
+# ==============================================================================
+# EXERCICE 2 : Test t de Student & Stratification (Données HER / BMI)
+# ==============================================================================
+
+# 1. Importation des données
+HER <- read.table("data/her.csv", header = TRUE, sep = ";")
+B   <- HER$BMI
+
+# 2. Exploration de la variable BMI
+summary(B)
+par(mfrow = c(1, 2))
+hist(B, prob = TRUE, main = "Histogramme du BMI", xlab = "BMI", col = "lightblue")
+boxplot(B, main = "Boîte à moustaches du BMI", col = "lightcoral")
+par(mfrow = c(1, 1))
+
+# 3. Test bilatéral global (H0 : mu = 25  vs  H1 : mu != 25)
+test_bmi_bilat <- t.test(B, mu = 25)
+test_bmi_bilat
+
+# 4. Test unilatéral supérieur global (H0 : mu <= 25  vs  H1 : mu > 25)
+test_bmi_sup <- t.test(B, mu = 25, alternative = "greater")
+test_bmi_sup
+
+# 5. Stratification par sexe (S = 1 pour Femmes, S = 0 pour Hommes)
+S  <- HER$sex
+BF <- B[S == 1 & !is.na(B)] # BMI Femmes
+BH <- B[S == 0 & !is.na(B)] # BMI Hommes
+
+# Test chez les femmes : H0 : mu >= 22  vs  H1 : mu < 22
+t.test(BF, mu = 22, alternative = "less")
+
+# Test chez les hommes : H0 : mu <= 23  vs  H1 : mu > 23
+t.test(BH, mu = 23, alternative = "greater")
+
+# 6. Stratification par traitement (Tr = 1 pour Traités, Tr = 0 pour Non-traités)
+Tr  <- HER$treat
+BT  <- B[Tr == 1 & !is.na(B)]
+BNT <- B[Tr == 0 & !is.na(B)]
+
+# Traités   : H0 : mu <= 25  vs  H1 : mu > 25
+t.test(BT, mu = 25, alternative = "greater")
+
+# Non-traités : H0 : mu >= 26  vs  H1 : mu < 26
+t.test(BNT, mu = 26, alternative = "less")
+
+
+# ==============================================================================
+# EXERCICE 3 : Analyse des D-dimères selon la Tranche d'Âge
+# ==============================================================================
+
+# 1. Importation du jeu de données Dimer
+dimer_data <- read.table("data/dimer.csv", header = TRUE, sep = ";")
+D_dimer    <- dimer_data$log.dimer
+Age_grp    <- dimer_data$age
+
+# 2. Sous-groupes par tranche d'âge
+D1 <- D_dimer[Age_grp == 1 & !is.na(D_dimer)]
+D2 <- D_dimer[Age_grp == 2 & !is.na(D_dimer)]
+D3 <- D_dimer[Age_grp == 3 & !is.na(D_dimer)]
+
+# Exploration
+boxplot(D_dimer ~ Age_grp, main = "log(D-dimères) par tranche d'âge",
+        xlab = "Tranche d'âge", ylab = "log(D-dimères)", col = "palegreen")
+
+# 3. Tests unilatéraux inférieurs sur la cohorte globale et sous-groupes
+# Cohorte globale : H0 : mu >= 0  vs  H1 : mu < 0
+t.test(D_dimer, mu = 0, alternative = "less")
+
+# Cohorte globale : H0 : mu >= -0.5  vs  H1 : mu < -0.5
+t.test(D_dimer, mu = -0.5, alternative = "less")
+
+# Stratification : H0 : mu >= -0.5  vs  H1 : mu < -0.5
+t.test(D1, mu = -0.5, alternative = "less") # Groupe 1 (Jeunes)
+t.test(D2, mu = -0.5, alternative = "less") # Groupe 2 (Intermédiaires)
+t.test(D3, mu = -0.5, alternative = "less") # Groupe 3 (Âgés)
+
+
+# ==============================================================================
+# EXERCICE 4 : Hydrophobie des Protéines selon le Règne Biologique
+# ==============================================================================
+
+# 1. Importation du jeu de données Protéines
+prot_data <- read.table("data/proteine.csv", header = TRUE, sep = ";")
+H_prot    <- prot_data$hydro
+
+# 2. Exploration
+summary(H_prot)
+boxplot(H_prot, main = "Distribution de l'indice d'hydrophobie", col = "khaki")
+
+# 3. Test global (H0 : mu >= -1  vs  H1 : mu < -1)
+t.test(H_prot, mu = -1, alternative = "less")
+
+# 4. Stratification par règne biologique
+HV <- H_prot[prot_data$regne == "Viridiplantae" & !is.na(H_prot)]
+HM <- H_prot[prot_data$regne == "Metazoa"      & !is.na(H_prot)]
+
+# Test chez les Viridiplantae : H0 : mu >= -1  vs  H1 : mu < -1
+t.test(HV, mu = -1, alternative = "less")
+
+# Test chez les Metazoa : H0 : mu >= -1  vs  H1 : mu < -1
+t.test(HM, mu = -1, alternative = "less")
