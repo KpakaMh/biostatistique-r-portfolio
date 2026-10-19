@@ -1,0 +1,152 @@
+# ==============================================================================
+# TP 6 : Intervalles de Confiance (Cas Non Gaussien, Proportions & Dimensionnement)
+# Description : Application du Théorème Central Limite (TCL), estimation par 
+#               intervalle de confiance pour des proportions (Wald / Wilson), 
+#               IC pour la variance (Chi2) et calcul de taille d'échantillon (n).
+# ==============================================================================
+
+
+# ==============================================================================
+# EXERCICE 1 : Estimation de la Moyenne en Cas Non Gaussien (TCL)
+# ==============================================================================
+
+# 1. Importation du jeu de données Ferretti
+FE <- read.table(file = "data/ferretti.csv", header = TRUE, sep = ";")
+D  <- FE$diameter
+
+# 2. Exploration visuelle de la distribution (vérification de la non-normalité)
+summary(D)
+
+par(mfrow = c(1, 2))
+hist(D, main = "Histogramme du diamètre", xlab = "Diamètre", col = "bisque", border = "white")
+boxplot(D, main = "Boîte à moustaches", ylab = "Diamètre", col = "lightcoral")
+par(mfrow = c(1, 1))
+
+# Estimation ponctuelle
+xbar       <- mean(D, na.rm = TRUE)
+sigmacarre <- var(D, na.rm = TRUE)
+
+# 3. Intervalles de confiance pour la moyenne mu via le TCL (n suffisamment grand)
+# Bien que la distribution soit asymétrique, le TCL permet d'utiliser le test t/z
+ic_90 <- t.test(D, conf.level = 0.90)$conf.int
+ic_95 <- t.test(D, conf.level = 0.95)$conf.int
+ic_99 <- t.test(D, conf.level = 0.99)$conf.int
+
+cat("IC 90% : [", round(ic_90[1], 2), ";", round(ic_90[2], 2), "]\n")
+cat("IC 95% : [", round(ic_95[1], 2), ";", round(ic_95[2], 2), "]\n")
+cat("IC 99% : [", round(ic_99[1], 2), ";", round(ic_99[2], 2), "]\n")
+
+# 4. Analyse descriptive complémentaire (Seuils & Quantiles)
+table(D > 30)
+quantile(D, 0.90, na.rm = TRUE) # 90ème percentile
+
+# 5. Stratification selon le caractère invasif de la tumeur
+I   <- FE$invasive
+DI  <- D[I == "yes" & !is.na(D)] # Tumeurs invasives
+DNI <- D[I == "no"  & !is.na(D)] # Tumeurs non invasives
+
+boxplot(D ~ I, main = "Diamètre selon le caractère invasif",
+        names = c("Non Invasif", "Invasif"), col = c("lightblue", "salmon"),
+        xlab = "Statut invasif", ylab = "Diamètre")
+
+# Intervalles de confiance pour chaque sous-groupe
+ic_invasive    <- t.test(DI)$conf.int
+ic_non_invasive <- t.test(DNI)$conf.int
+
+cat("IC 95% Tumeurs Invasives     : [", round(ic_invasive[1], 2), ";", round(ic_invasive[2], 2), "]\n")
+cat("IC 95% Tumeurs Non Invasives : [", round(ic_non_invasive[1], 2), ";", round(ic_non_invasive[2], 2), "]\n")
+
+
+# ==============================================================================
+# EXERCICE 2 : Estimation d'une Proportion (Taux de Fertilité)
+# ==============================================================================
+
+# Données du groupe exposé : x = 4998 œufs fertiles sur n = 5636
+x_expo <- 4998
+n_expo <- 5636
+
+# 1. Fréquence empirique
+Fexpo <- x_expo / n_expo
+cat("Proportion empirique d'œufs fertiles (Exposés) :", round(Fexpo, 4), "\n")
+
+# 2. Calcul manuel de l'IC à 95% (Approximation Normale de Wald)
+alpha <- 0.05
+u     <- qnorm(1 - alpha / 2)
+se    <- sqrt(Fexpo * (1 - Fexpo))
+
+ic_wald <- Fexpo + c(-1, 1) * u * (se / sqrt(n_expo))
+cat("IC 95% (Wald manuel) : [", round(ic_wald[1], 4), ";", round(ic_wald[2], 4), "]\n")
+
+# 3. Calcul automatique avec correction de continuité (Score de Wilson)
+ic_wilson <- prop.test(x_expo, n_expo)$conf.int
+cat("IC 95% (prop.test)   : [", round(ic_wilson[1], 4), ";", round(ic_wilson[2], 4), "]\n")
+
+# 4. Groupe contrôle (Non exposés)
+x_ctrl <- 5834
+n_ctrl <- 6221
+
+ic_ctrl <- prop.test(x_ctrl, n_ctrl)$conf.int
+cat("IC 95% (Contrôles)   : [", round(ic_ctrl[1], 4), ";", round(ic_ctrl[2], 4), "]\n")
+
+
+# ==============================================================================
+# EXERCICE 3 : Intervalles de Confiance pour Sondages d'Opinion
+# ==============================================================================
+
+# Comparaison des IC de proportions d'intentions de vote (Échantillons n = 1000)
+ic_parti1 <- prop.test(x = 260, n = 1000)$conf.int # 26.0%
+ic_parti2 <- prop.test(x = 270, n = 1000)$conf.int # 27.0%
+ic_parti3 <- prop.test(x = 285, n = 1000)$conf.int # 28.5%
+
+cat("IC 95% (26.0%) : [", round(ic_parti1[1] * 100, 2), "%;", round(ic_parti1[2] * 100, 2), "%]\n")
+cat("IC 95% (27.0%) : [", round(ic_parti2[1] * 100, 2), "%;", round(ic_parti2[2] * 100, 2), "%]\n")
+cat("IC 95% (28.5%) : [", round(ic_parti3[1] * 100, 2), "%;", round(ic_parti3[2] * 100, 2), "%]\n")
+# Remarque : Les chevauchements importants d'IC montrent que les différences 
+# ne sont pas significatives (marge d'erreur de sondage de ~3%).
+
+
+# ==============================================================================
+# EXERCICE 4 : Calcul de Marge d'Erreur & Taille d'Échantillon
+# ==============================================================================
+
+# Paramètres donnés : n = 90, xbar = 4.38, sigma = 0.08
+n_stud   <- 90
+xbar_stud <- 4.38
+sig_stud <- 0.08
+
+# 1. IC de la moyenne à 95% et 99%
+ic_95_stud <- xbar_stud + c(-1, 1) * qnorm(0.975) * (sig_stud / sqrt(n_stud))
+ic_99_stud <- xbar_stud + c(-1, 1) * qnorm(0.995) * (sig_stud / sqrt(n_stud))
+
+cat("IC 95% : [", round(ic_95_stud[1], 4), ";", round(ic_95_stud[2], 4), "]\n")
+cat("IC 99% : [", round(ic_99_stud[1], 4), ";", round(ic_99_stud[2], 4), "]\n")
+
+# 2. Calcul de la taille d'échantillon minimale (n) pour une marge d'erreur e = 0.01
+e_cible <- 0.01
+n_requis <- (qnorm(0.975) * sig_stud / e_cible)^2
+cat("Taille d'échantillon minimale requise (n) :", ceiling(n_requis), "\n")
+
+# 3. Évaluation du niveau de confiance pour une marge fixée e = 0.01 avec n = 80
+n_reduit <- 80
+confiance_obtenue <- 1 - 2 * pnorm(-e_cible / sig_stud * sqrt(n_reduit))
+cat("Niveau de confiance obtenu pour n = 80 :", round(confiance_obtenue * 100, 2), "%\n")
+
+
+# ==============================================================================
+# EXERCICE 5 : Intervalle de Confiance pour la Variance et l'Écart-Type
+# ==============================================================================
+
+# Paramètres : n = 100, xbar = 18.4, s = 0.32
+n_var  <- 100
+Sp_var <- 0.32
+alpha  <- 0.05
+
+# Quantiles de la loi du Chi-deux à (n-1) degrés de liberté
+z1 <- qchisq(1 - alpha / 2, df = n_var - 1)
+z2 <- qchisq(alpha / 2,     df = n_var - 1)
+
+# Bornes de l'IC pour l'écart-type sigma
+borne_inf_sigma <- Sp_var * sqrt((n_var - 1) / z1)
+borne_sup_sigma <- Sp_var * sqrt((n_var - 1) / z2)
+
+cat("IC 95% de l'écart-type sigma : [", round(borne_inf_sigma, 4), ";", round(borne_sup_sigma, 4), "]\n")
