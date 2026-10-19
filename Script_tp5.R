@@ -1,0 +1,91 @@
+# ==============================================================================
+# TP 5 : Estimation Ponctuelle & Intervalles de Confiance
+# Description : Calcul d'intervalles de confiance pour une moyenne (mu) avec 
+#               variance inconnue. Comparaison des formules théoriques (loi t) 
+#               avec la fonction t.test(), et application par stratification.
+# ==============================================================================
+
+
+# ==============================================================================
+# EXERCICE 2 : Intervalle de Confiance de la Taille (Données Ferretti)
+# ==============================================================================
+
+# 1. Chargement du jeu de données et extraction de la variable de taille
+FE <- read.table(file = "data/ferretti.csv", header = TRUE, sep = ";")
+H  <- FE$height
+
+# 2. Méthode rapide via la fonction R t.test()
+# Par défaut : niveau de confiance à 95% (alpha = 0.05)
+ic_95_auto <- t.test(H)$conf.int
+ic_95_auto
+
+# Variations du niveau de confiance (1 - alpha)
+ic_90_auto <- t.test(H, conf.level = 0.90)$conf.int
+ic_99_auto <- t.test(H, conf.level = 0.99)$conf.int
+
+cat("IC 90% (auto) : [", round(ic_90_auto[1], 2), ";", round(ic_90_auto[2], 2), "]\n")
+cat("IC 95% (auto) : [", round(ic_95_auto[1], 2), ";", round(ic_95_auto[2], 2), "]\n")
+cat("IC 99% (auto) : [", round(ic_99_auto[1], 2), ";", round(ic_99_auto[2], 2), "]\n")
+# Remarque : Plus le niveau de confiance augmente, plus l'intervalle est large.
+
+
+# 3. Calculs théoriques manuels (Formule de Student)
+# IC_{1-alpha} = [ X_bar - t_{1-alpha/2}(n-1) * s / sqrt(n) ; X_bar + t_{1-alpha/2}(n-1) * s / sqrt(n) ]
+
+n    <- length(H[!is.na(H)]) # Taille de l'échantillon (hors NA)
+Xbar <- mean(H, na.rm = TRUE) # Moyenne empirique
+Sp   <- sd(H, na.rm = TRUE)   # Écart-type empirique corrigé
+
+# Fonction personnalisée pour calculer l'IC théorique
+calcul_ic_moyenne <- function(mean_val, sd_val, n_val, alpha = 0.05) {
+  t_crit <- qt(1 - alpha / 2, df = n_val - 1)
+  marge_erreur <- t_crit * (sd_val / sqrt(n_val))
+  borne_inf <- mean_val - marge_erreur
+  borne_sup <- mean_val + marge_erreur
+  return(c(borne_inf = borne_inf, borne_sup = borne_sup))
+}
+
+# Calculs aux différents seuils alpha
+ic_95_theo <- calcul_ic_moyenne(Xbar, Sp, n, alpha = 0.05)
+ic_90_theo <- calcul_ic_moyenne(Xbar, Sp, n, alpha = 0.10)
+ic_99_theo <- calcul_ic_moyenne(Xbar, Sp, n, alpha = 0.01)
+
+# Affichage des résultats
+cat("\n--- Résultats Théoriques ---\n")
+print(round(ic_95_theo, 2))
+
+
+# ==============================================================================
+# EXERCICE 3 : Intervalles de Confiance Stratifiés (Données Ozone)
+# ==============================================================================
+
+# 1. Chargement de la base de données Ozone
+oz <- read.table("data/ozone.csv", header = TRUE, sep = ";")
+
+# 2. Extraction des variables d'intérêt
+MO3 <- oz$maxO3
+V   <- oz$vent
+
+# 3. Exploration visuelle et statistiques descriptives par secteur de vent
+boxplot(MO3 ~ V, 
+        main = "Concentration maximale d'ozone selon le secteur du vent",
+        xlab = "Secteur du vent", ylab = "Max Ozone (µg/m³)",
+        col = c("gold", "lightblue", "lightgreen", "coral"))
+
+by(MO3, V, function(x) summary(x[!is.na(x)]))
+
+# 4. Extraction des sous-échantillons (Secteurs Est et Ouest)
+MO3_Est   <- MO3[V == "Est" & !is.na(MO3)]
+MO3_Ouest <- MO3[V == "Ouest" & !is.na(MO3)]
+
+# 5. Intervalles de confiance à 95% pour chaque sous-groupe
+ic_Est   <- t.test(MO3_Est)$conf.int
+ic_Ouest <- t.test(MO3_Ouest)$conf.int
+
+cat("\n--- IC 95% de la moyenne d'ozone selon le vent ---\n")
+cat("Vent Est   : [", round(ic_Est[1], 2), ";", round(ic_Est[2], 2), "]\n")
+cat("Vent Ouest : [", round(ic_Ouest[1], 2), ";", round(ic_Ouest[2], 2), "]\n")
+
+# Interprétation : Si les deux intervalles ne se chevauchent pas (ou peu),
+# cela indique une différence potentiellement significative de la concentration
+# d'ozone moyenne selon l'origine du vent.
