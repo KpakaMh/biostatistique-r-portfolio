@@ -1,0 +1,139 @@
+# ==============================================================================
+# TP 7 : Principes des Tests d'Hypothèses Statistiques & Prise de Décision
+# Description : Formalisation de H0 / H1, construction des règles de décision, 
+#               calcul des valeurs critiques (seils alpha = 5% et 1%), 
+#               calcul de la statistique Z_obs et détermination des p-values.
+# ==============================================================================
+
+
+# ==============================================================================
+# EXERCICE 1 : Évaluation du Risque Clinique (Tests Unilatéraux)
+# ==============================================================================
+
+# Contextualisation : Analyse du profil de risque d'un patient selon deux modèles
+# Modèle 1 (Dr. House) : H0 : mu <= -1  vs  H1 : mu > -1  (Test unilatéral à droite)
+# Modèle 2 (Dr. Cuddy) : H0 : mu >=  0  vs  H1 : mu < 0   (Test unilatéral à gauche)
+
+mu0_house <- -1
+sig       <- 0.3
+x_obs     <- -0.46 # Valeur mesurée chez le patient
+
+# 1. Modèle 1 (Test unilatéral à droite)
+# Zone de rejet de H0 : { X_obs > qnorm(1 - alpha, mu0, sig) }
+
+seuil_house_5pct <- qnorm(0.95, mean = mu0_house, sd = sig)
+seuil_house_1pct <- qnorm(0.99, mean = mu0_house, sd = sig)
+
+cat("--- Modèle Dr. House (H1 : mu > -1) ---\n")
+cat("Seuil critique (alpha = 5%) :", round(seuil_house_5pct, 4), "\n")
+cat("Seuil critique (alpha = 1%) :", round(seuil_house_1pct, 4), "\n")
+cat("Valeur observée             :", x_obs, "\n")
+
+# Décision :
+# À alpha = 5% : x_obs (-0.46) > seuil (-0.5065) -> Rejet de H0. Patient à risque.
+# À alpha = 1% : x_obs (-0.46) < seuil (-0.3021) -> Non-rejet de H0. Patient non considéré à risque.
+
+# 2. Modèle 2 (Test unilatéral à gauche)
+mu0_cuddy <- 0
+
+# Statistique de test centrée réduite Z_obs
+z_obs_cuddy <- (x_obs - mu0_cuddy) / sig # Z = (-0.46 - 0) / 0.3 = -1.5333
+
+# Calcul de la p-value associée
+p_value_cuddy <- pnorm(z_obs_cuddy) # P(Z <= -1.5333)
+
+cat("\n--- Modèle Dr. Cuddy (H1 : mu < 0) ---\n")
+cat("Statistique Z_obs :", round(z_obs_cuddy, 4), "\n")
+cat("p-value           :", round(p_value_cuddy, 4), "\n")
+
+# Seuil critique unilatéral à gauche au risque alpha = 5%
+seuil_cuddy_5pct <- qnorm(0.05, mean = mu0_cuddy, sd = sig)
+cat("Seuil critique (alpha = 5%) :", round(seuil_cuddy_5pct, 4), "\n")
+
+
+# ==============================================================================
+# EXERCICE 2 : Test Unilatéral de Concentration Biomédicale
+# ==============================================================================
+
+# Problématique : Vérifier si la concentration moyenne est inférieure au seuil de 150
+# Hypothèses : H0 : mu >= 150  vs  H1 : mu < 150 (Test unilatéral à gauche)
+
+mu0_conc  <- 150
+sig_conc  <- 5
+conc_obs  <- 140
+alpha_conc <- 0.05
+
+# Règle de décision : Rejet de H0 si conc_obs < qnorm(alpha, mu0, sig)
+seuil_critique_conc <- qnorm(alpha_conc, mean = mu0_conc, sd = sig_conc)
+z_obs_conc          <- (conc_obs - mu0_conc) / sig_conc
+
+cat("\n--- Test de Concentration ---\n")
+cat("Seuil critique (alpha = 5%) :", seuil_critique_conc, "\n")
+cat("Concentration observée      :", conc_obs, "\n")
+cat("Statistique Z_obs           :", z_obs_conc, "\n")
+
+# Décision : conc_obs (140) < seuil (141.77) -> Rejet de H0 au seuil 5%.
+# La concentration est significativement inférieure à 150.
+
+
+# ==============================================================================
+# EXERCICE 3 : Contrôle Qualité Industriel (Poids de Conditionnement)
+# ==============================================================================
+
+# Norme visée : mu0 = 1000g, écart-type connu sig = 20g
+mu0_poids  <- 1000
+sig_poids  <- 20
+
+# Case A : Test Bilatéral (Responsable Production)
+# Hypothèses : H0 : mu = 1000  vs  H1 : mu != 1000
+# Zone de rejet : { X_obs < q_alpha/2  OU  X_obs > q_1-alpha/2 }
+
+seuils_bilat_5pct <- qnorm(c(0.025, 0.975), mean = mu0_poids, sd = sig_poids)
+seuils_bilat_1pct <- qnorm(c(0.005, 0.995), mean = mu0_poids, sd = sig_poids)
+
+cat("\n--- Contrôle Qualité : Test Bilatéral ---\n")
+cat("Région critique (alpha = 5%) : ]-Inf ;", round(seuils_bilat_5pct[1], 2), 
+    "[ U ]", round(seuils_bilat_5pct[2], 2), "; +Inf[\n")
+cat("Région critique (alpha = 1%) : ]-Inf ;", round(seuils_bilat_1pct[1], 2), 
+    "[ U ]", round(seuils_bilat_1pct[2], 2), "; +Inf[\n")
+
+# Case B : Test Unilatéral à Droite (Surcharge)
+# Hypothèses : H0 : mu <= 1000  vs  H1 : mu > 1000
+seuil_droit_5pct <- qnorm(0.95, mean = mu0_poids, sd = sig_poids)
+seuil_droit_1pct <- qnorm(0.99, mean = mu0_poids, sd = sig_poids)
+
+cat("\n--- Contrôle Qualité : Test Unilatéral Droite ---\n")
+cat("Seuil de rejet (alpha = 5%) : >", round(seuil_droit_5pct, 2), "g\n")
+cat("Seuil de rejet (alpha = 1%) : >", round(seuil_droit_1pct, 2), "g\n")
+
+# Case C : Test Unilatéral à Gauche (Sous-dosage)
+# Hypothèses : H0 : mu >= 1000  vs  H1 : mu < 1000
+seuil_gauche_5pct <- qnorm(0.05, mean = mu0_poids, sd = sig_poids)
+seuil_gauche_1pct <- qnorm(0.01, mean = mu0_poids, sd = sig_poids)
+
+cat("\n--- Contrôle Qualité : Test Unilatéral Gauche ---\n")
+cat("Seuil de rejet (alpha = 5%) : <", round(seuil_gauche_5pct, 2), "g\n")
+cat("Seuil de rejet (alpha = 1%) : <", round(seuil_gauche_1pct, 2), "g\n")
+
+
+# ==============================================================================
+# EXERCICE 4 : Test de Conformité d'un Indice de Risque
+# ==============================================================================
+
+# Paramètres : mu0 = 30, sig = 2
+
+# 1. Test unilatéral à droite (H0 : mu <= 30  vs  H1 : mu > 30)
+seuil_idx_droit_5pct <- qnorm(0.95, mean = 30, sd = 2)
+seuil_idx_droit_1pct <- qnorm(0.99, mean = 30, sd = 2)
+
+cat("\n--- Indice de Risque (Test Droite) ---\n")
+cat("Seuil critique (alpha = 5%) : >", round(seuil_idx_droit_5pct, 4), "\n")
+cat("Seuil critique (alpha = 1%) : >", round(seuil_idx_droit_1pct, 4), "\n")
+
+# 2. Test unilatéral à gauche (H0 : mu >= 30  vs  H1 : mu < 30)
+seuil_idx_gauche_5pct <- qnorm(0.05, mean = 30, sd = 2)
+seuil_idx_gauche_1pct <- qnorm(0.01, mean = 30, sd = 2)
+
+cat("\n--- Indice de Risque (Test Gauche) ---\n")
+cat("Seuil critique (alpha = 5%) : <", round(seuil_idx_gauche_5pct, 4), "\n")
+cat("Seuil critique (alpha = 1%) : <", round(seuil_idx_gauche_1pct, 4), "\n")
