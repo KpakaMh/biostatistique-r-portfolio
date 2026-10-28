@@ -1,0 +1,118 @@
+library(shiny)
+library(bslib)
+library(ggplot2)
+
+# ==============================================================================
+# 1. INTERFACE UTILISATEUR (UI)
+# ==============================================================================
+ui <- page_sidebar(
+  title = "BioStat Explorer — Analyse & Tests Automatisés",
+  theme = bs_theme(bootswatch = "flatly"),
+  
+  sidebar = sidebar(
+    title = "Configuration",
+    
+    # Importation du fichier CSV
+    fileInput("file", "Charger un fichier CSV", 
+              accept = c(".csv", "text/csv", "text/comma-separated-values")),
+    
+    checkboxInput("header", "Le fichier contient un en-tête", TRUE),
+    radioButtons("sep", "Séparateur de colonnes", 
+                 choices = c("Virgule (,)" = ",", "Point-virgule (;)" = ";", "Tabulation" = "\t"), 
+                 selected = ";"),
+    
+    hr(),
+    
+    # Sélecteurs dynamiques de variables
+    selectInput("var_num", "Variable Quantitative (Y) :", choices = NULL),
+    selectInput("var_cat", "Variable Qualitative (X) :", choices = NULL),
+    
+    hr(),
+    
+    # Choix du test statistique
+    radioButtons("test_type", "Test de comparaison :",
+                 choices = c("t-test de Student (Paramétrique)" = "ttest",
+                             "Wilcoxon / Mann-Whitney (Non paramétrique)" = "wilcox"))
+  ),
+  
+  # Panneau principal d'affichage
+  navset_card_tab(
+    nav_panel("Aperçu des Données", tableOutput("data_preview")),
+    nav_panel("Visualisation", plotOutput("boxplot")),
+    nav_panel("Résultats du Test", verbatimTextOutput("test_result"))
+  )
+)
+
+# ==============================================================================
+# 2. LOGIQUE SERVEUR
+# ==============================================================================
+server <- function(input, output, session) {
+  
+  # Lecture réactive du fichier importé
+  data_imported <- reactive({
+    req(input$file)
+    read.csv(input$file$datapath, header = input$header, sep = input$sep)
+  })
+  
+  # Mise à jour automatique des menus déroulants selon les colonnes du CSV
+  observeEvent(data_imported(), {
+    df <- data_imported()
+    num_cols <- names(df)[sapply(df, is.numeric)]
+    cat_cols <- names(df)[sapply(df, function(x) is.character(x) || is.factor(x) || length(unique(x)) < 10)]
+    
+    updateSelectInput(session, "var_num", choices = num_cols)
+    updateSelectInput(session, "var_cat", choices = cat_cols)
+  })
+  
+  # 1. Tableau d'aperçu des 10 premières lignes
+  output$data_preview <- renderTable({
+    req(data_imported())
+    head(data_imported(), 10)
+  })
+  
+  # 2. Génération du Boxplot interactif
+  output$boxplot <- renderPlot({
+    req(data_imported(), input$var_num, input$var_cat)
+    
+    df <- data_imported()
+    ggplot(df, aes(x = as.factor(.data[[input$var_cat]]), y = .data[[input$var_num]], fill = as.factor(.data[[input$var_cat]]))) +
+      geom_boxplot(alpha = 0.7, outlier.colour = "red") +
+      theme_minimal(base_size = 15) +
+      labs(x = input$var_cat, y = input$var_num, fill = input$var_cat,
+           title = paste("Distribution de", input$var_num, "selon", input$var_cat)) +
+      scale_fill_brewer(palette = "Set2")
+  })
+  
+  # 3. Exécution du test statistique
+  output$test_result <- renderPrint({
+    req(data_imported(), input$var_num, input$var_cat)
+    
+    df <- data_imported()
+    y <- df[[input$var_num]]
+    x <- as.factor(df[[input$var_cat]])
+    
+    # Vérification : Le test à 2 échantillons requiert exactement 2 modalités
+    if (length(levels(x)) != 2) {
+      cat("Erreur : La variable qualitative doit contenir exactement 2 groupes pour ce test.\n")
+      cat("Groupes détectés (", length(levels(x)), ") : ", paste(levels(x), collapse = ", "), "\n")
+      return(NULL)
+    }
+    
+    cat("=========================================================\n")
+    cat(" RÉSULTAT DU TEST STATISTIQUE\n")
+    cat("=========================================================\n\n")
+    
+    if (input$test_type == "ttest") {
+      res <- t.test(y ~ x)
+    } else {
+      res <- wilcox.test(y ~ x)
+    }
+    
+    print(res)
+  })
+}
+
+# ==============================================================================
+# 3. LANCEMENT DE L'APPLICATION
+# ==============================================================================
+shinyApp(ui = ui, server = server)
